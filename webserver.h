@@ -14,6 +14,7 @@
 #include<stdlib.h>
 #include<cassert>
 #include<sys/epoll.h>
+#include<string>
 
 #include"./threadpool/threadpool.h"
 #include"./http/http_conn.h"
@@ -21,6 +22,7 @@
 const int MAX_FD = 65536;
 const int MAX_EVENT_NUMBER = 10000;
 const int TIMESLOT = 5;
+using namespace std;
 
 class WebServer {
  public:
@@ -31,7 +33,7 @@ class WebServer {
   void thread_pool();
   void sql_pool();
   void log_write();
-  void trigmode();
+  void trig_mode();
   void eventListen();
   void eventLoop();
   void timer();
@@ -50,17 +52,17 @@ class WebServer {
 
   int m_pipefd[2];
   int m_epollfd;
-  http_conn *users;
+  // http_conn *users;
 
   // 数据库相关
-  connection_pool *m_connPool;
+  // connection_pool *m_connPool;
   string m_user;
   string m_passWord;
   string m_databaseName;
   int m_sql_num;
 
   // 线程池
-  threadpool<http_conn> *m_pool;
+  // threadpool<http_conn> *m_pool;
   int m_thread_num;
 
   // epoll_event
@@ -73,8 +75,8 @@ class WebServer {
   int m_CONNTrigmode;
 
   // 定时器相关
-  client_data *users_timer;
-  Utils utils;
+  // client_data *users_timer;
+  // Utils utils;
 };
 
 #endif //ABSMSERVER__WEBSERVER_H_
