@@ -11,7 +11,7 @@ int main(int argc, char *argv[]) {
   Config config;
   config.parse_arg(argc, argv);
 
-  // WebServer server;
+  WebServer server;
   // server.init();
   //
   // server.log_write();
