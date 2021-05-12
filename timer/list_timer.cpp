@@ -154,15 +154,21 @@ void Utils::addfd(int epollfd, int fd, bool one_shot, int TRIGMode) {
 }
 
 // 信号处理函数
+// 功能：当信号来临时作何反应
+// 这里不指定信号，理论上可以有很多不容的处理函数被注册到不同的信号上
+// 但是本函数仅仅传递sig给主程序，因此一个就够了
 void Utils::sig_handler(int sig) {
   // 保存errno，保证可重入性
   int save_errno = errno;
   int msg = sig;
   // 利用管道传递sig
+  // 这里仅仅是发送给主程序sig，由主程序的EventLoop函数来处理信号
+  // 这是为了避免信号竟态，在信号处理期间该函数不会被重复调用，因此必须尽快结束，所以才会让主程序处理这些
   send(u_pipefd[1], (char *) &msg, 1, 0);
   errno = save_errno;
 }
 
+// 功能：把信号处理函数handler注册到sig上
 void Utils::addsig(int sig, void (*handler)(int), bool restart) {
   struct sigaction sa;
   memset(&sa, '\0', sizeof(sa));
@@ -178,6 +184,8 @@ void Utils::addsig(int sig, void (*handler)(int), bool restart) {
   assert(sigaction(sig, &sa, NULL) != -1);
 }
 
+// 在主程序的eventLoop中，每个循环都会调用这个函数
+// 作用：1. 检查定时器事件，2. 对链表做出处理， 3. 然后发送信号
 void Utils::timer_handler() {
   // 检查链表
   m_timer_lst.tick();
@@ -197,6 +205,7 @@ int *Utils::u_pipefd = NULL;
 int Utils::u_epollfd = 0;
 
 class Utils;
+// 下面这个函数会被初始化给每一个timer中的cb_func
 void cb_func(client_data *user_data) {
   // 删除这个epoll事件
   epoll_ctl(Utils::u_epollfd, EPOLL_CTL_DEL, user_data->sockfd, 0);

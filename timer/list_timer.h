@@ -87,4 +87,6 @@ class Utils {
   int m_TIMESLOT;
 };
 
+void cb_func(client_data *user_data);
+
 #endif //ABSMSERVER_TIMER_LIST_TIMER_H_
