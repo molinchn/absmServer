@@ -36,6 +36,7 @@ class http_conn {
   static const int FILENAME_LEN = 200;
   static const int READ_BUFFER_SIZE = 2048;
   static const int WRITE_BUFFER_SIZE = 1024;
+  // 请求方法
   enum METHOD {
     GET = 0,
     POST,
@@ -47,11 +48,13 @@ class http_conn {
     CONNECT,
     PATH
   };
+  // 主状态机状态
   enum CHECK_STATE {
     CHECK_STATE_REQUESTLINE = 0,
     CHECK_STATE_HEADER,
     CHECK_STATE_CONTENT
   };
+  // 报文解析结果
   enum HTTP_CODE {
     NO_REQUEST,
     GET_REQUEST,
@@ -62,7 +65,8 @@ class http_conn {
     INTERNAL_ERROR,
     CLOSED_CONNECTION
   };
-  enum LINE_STATUE {
+  // 从状态机的状态
+  enum LINE_STATUS {
     LINE_OK = 0,
     LINE_BAD,
     LINE_OPEN
@@ -105,7 +109,14 @@ class http_conn {
 
  public:
   static int m_epollfd;
+  static int m_user_count;
+  MYSQL *mysql;
+  int m_state;
+
+ private:
+  int m_sockfd;
   sockaddr_in m_address;
+  char m_read_buf[READ_BUFFER_SIZE];
   char m_read_idx;
   int m_checked_idx;
   int m_start_line;
