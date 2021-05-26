@@ -149,7 +149,7 @@ http_conn::LINE_STATUS http_conn::parse_line() {
         return LINE_OK;
       }
       return LINE_BAD;
-    } else if (tmep == '\n') {
+    } else if (temp == '\n') {
       if (m_checked_idx > 1 && m_read_buf[m_checked_idx - 1] == '\r') {
         m_read_buf[m_checked_idx - 1] = '\0';
         m_read_buf[m_checked_idx++] = '\0';
@@ -489,4 +489,133 @@ bool http_conn::process_write(HTTP_CODE ret) {
   return true;
 }
 
+// 取消映射
+void http_conn::unmap() {
+  if (m_file_address) {
+    munmap(m_file_address, m_file_stat.st_size);
+    m_file_address = 0;
+  }
+}
+
+// write()由主线程调用，主要作用是发送http报文
+// 注释待补充
+bool http_conn::write() {
+  int temp = 0;
+  if (bytes_to_send == 0) {
+    modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);
+    init();
+    return true;
+  }
+  while (1) {
+    temp = writev(m_sockfd, m_iv, m_iv_count);
+    if (temp < 0) {
+      if (errno == EAGAIN) {
+        modfd(m_epollfd, m_sockfd, EPOLLOUT, m_TRIGMode);
+        return true;
+      }
+      unmap();
+      return false;
+    }
+    bytes_have_send += temp;
+    bytes_to_send -= temp;
+    if (bytes_have_send >= m_iv[0].iov_len) {
+      m_iv[0].iov_len = 0;
+      m_iv[1].iov_base = m_file_address + (bytes_have_send - m_write_idx);
+      m_iv[1].iov_len = bytes_to_send;
+    } else {
+      m_iv[0].iov_base = m_write_buf + bytes_have_send;
+      m_iv[0].iov_len = m_iv[0].iov_len - bytes_have_send;
+    }
+    if (bytes_to_send <= 0) {
+      unmap();
+      modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);
+
+      if (m_linger) {
+        init();
+        return true;
+      } else {
+        return false;
+      }
+    }
+  }
+}
+
+bool http_conn::read_once() {
+  if (m_read_idx >= READ_BUFFER_SIZE) return false;
+
+  int bytes_read = 0;
+  if (m_TRIGMode == 0) {
+    // LT模式
+    // 第二个参数是缓冲区的位置，第三个是缓冲区的大小，第四个flag通常设置为0
+    bytes_read = recv(m_sockfd, m_read_buf + m_read_idx, READ_BUFFER_SIZE - m_read_idx, 0);
+    m_read_idx += bytes_read;
+    if (bytes_read <= 0) {
+      return false;
+    }
+    return true;
+  } else {
+    // ET模式
+    // 一次读完所有
+    while (true) {
+      bytes_read = recv(m_sockfd, m_read_buf + m_read_idx, READ_BUFFER_SIZE - m_read_idx, 0);
+      if (bytes_read == -1) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) break;
+        return false;
+      } else if (bytes_read == 0) {
+        return false;
+      }
+      m_read_idx += bytes_read;
+    }
+    return true;
+  }
+}
+
+bool http_conn::add_status_line(int status, const char *title) {
+  return add_response("%s %d %s\r\n", "HTTP/1.1", status, title);
+}
+
+bool http_conn::add_headers(int content_length) {
+  return add_content_length(content_length) && add_linger() && add_blank_line();
+}
+
+bool http_conn::add_content_length(int content_len) {
+  return add_response("Content-Length:%d\r\n", content_len);
+}
+
+bool http_conn::add_content_type() {
+  return add_response("Content-Type:%s\r\n", "text/html");
+}
+
+bool http_conn::add_linger() {
+  return add_response("Connection:%s\r\n", (m_linger == true) ? "Keep-alive" : "close");
+}
+
+bool http_conn::add_blank_line() {
+  return add_response("%s", "\r\n");
+}
+
+bool http_conn::add_content(const char *content) {
+  return add_response("%s", content);
+}
+
+// 这个函数被上面的add类函数调用
+// 具体实现原理有待学习
+bool http_conn::add_response(const char *format, ...) {
+  // m_write_idx是写入的位置
+  if (m_write_idx >= WRITE_BUFFER_SIZE) {
+    return false;
+  }
+  // 可变参数列表
+  va_list arg_list;
+  // arglist实际上是一个char*指针，format是第一个形参
+  va_start(arg_list, format);
+  int len = vsnprintf(m_write_buf + m_write_idx, WRITE_BUFFER_SIZE - 1 - m_write_idx, format, arg_list);
+  if (len >= (WRITE_BUFFER_SIZE - 1 - m_write_idx)) {
+    va_end(arg_list);
+    return false;
+  }
+  m_write_idx += len;
+  va_end(arg_list);
+  return true;
+}
 
