@@ -278,7 +278,7 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char *text) {
 // 解析请求头
 // 每次只解析一行
 http_conn::HTTP_CODE http_conn::parse_headers(char *text) {
-  cout << "读到的text：" << text << endl;
+  // cout << "读到的text：" << text << endl;
   if (text[0] == '\0') {
     // 如果m_content_length == 0则说明是GET，否则是POST
     if (m_content_length != 0) {
@@ -292,7 +292,7 @@ http_conn::HTTP_CODE http_conn::parse_headers(char *text) {
     if (strcasecmp(text, "keep-alive") == 0) {
       m_linger = true;
     }
-  } else if (strncasecmp(text, "Content-lenght:", 15) == 0) {
+  } else if (strncasecmp(text, "Content-Length:", 15) == 0) {
     text += 15;
     text += strspn(text, " \t");
     m_content_length = atol(text);
