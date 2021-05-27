@@ -25,7 +25,7 @@ void http_conn::initmysql_result(connection_pool *connPool) {
   connectionRAII mysqlcon(&mysql, connPool);
 
   if (mysql_query(mysql, "SELECT username,passwd FROM user")) {
-    LOG_ERROR("SELECT error:%\n", mysql_error(mysql));
+    // LOG_ERROR("SELECT error:%\n", mysql_error(mysql));
   }
 
   // 查询结果
@@ -157,8 +157,8 @@ http_conn::LINE_STATUS http_conn::parse_line() {
       }
       return LINE_BAD;
     }
-    return LINE_OPEN;
   }
+  return LINE_OPEN;
 }
 
 void http_conn::process() {
@@ -192,17 +192,20 @@ http_conn::HTTP_CODE http_conn::process_read() {
     m_start_line = m_checked_idx;
     switch (m_check_state) {
       case CHECK_STATE_REQUESTLINE: {
+        cout << "解析请求行" << endl;
         ret = parse_request_line(text);
         if (ret == BAD_REQUEST) return BAD_REQUEST;
         break;
       }
       case CHECK_STATE_HEADER: {
+        cout << "解析请求头" << endl;
         ret = parse_headers(text);
         if (ret == BAD_REQUEST) return BAD_REQUEST;
         else if (ret == GET_REQUEST) return do_request();
         break;
       }
       case CHECK_STATE_CONTENT: {
+        cout << "解析请求主体" << endl;
         ret = parse_content(text);
         if (ret == GET_REQUEST) return do_request();
         line_status = LINE_OPEN;
@@ -224,6 +227,7 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char *text) {
   }
   *m_url = '\0';
   // 这时text指向的是http方法，结尾是\0
+  cout << "Http method: " << text << endl;
   ++m_url;
   char *method = text;
   if (strcasecmp(method, "GET") == 0) {
@@ -243,12 +247,14 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char *text) {
   }
   *m_version = '\0';
   // 这时m_url指向的是URL所在的子串，结尾是\0
+  cout << "Url: " << m_url << endl;
   ++m_version;
   // 这一步是为了防止多余的空格或者\t，所以算出来所有的长度，然后加上去
   m_version += strspn(m_version, " \t");
   // 这个时候m_version指向的是版本号所在的子串，末尾天然是\0
+  cout << "Http version: " << m_version << endl;
 
-  if (strcasecmp(m_version, "HTTP1.1") != 0) {
+  if (strcasecmp(m_version, "HTTP/1.1") != 0) {
     return BAD_REQUEST;
   }
 
@@ -272,6 +278,7 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char *text) {
 // 解析请求头
 // 每次只解析一行
 http_conn::HTTP_CODE http_conn::parse_headers(char *text) {
+  cout << "读到的text：" << text << endl;
   if (text[0] == '\0') {
     // 如果m_content_length == 0则说明是GET，否则是POST
     if (m_content_length != 0) {

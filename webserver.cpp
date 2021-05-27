@@ -7,12 +7,15 @@
 WebServer::WebServer() {
   users = new http_conn[MAX_FD];
 
-  char server_path[200];
-  getcwd(server_path, 200);
+  // char server_path[200];
+  // getcwd(server_path, 200);
+  // 由于使用clion调试，这里手动设置路径
+  char server_path[] = "/home/molinchn/remoteProjects/absmServer";
   char root[6] = "/root";
   m_root = (char *) malloc(strlen(server_path) + strlen(root) + 1);
   strcpy(m_root, server_path);
   strcat(m_root, root);
+  cout << "m_root = " << m_root << endl;
 
   users_timer = new client_data[MAX_FD];
 }
@@ -53,7 +56,7 @@ void WebServer::init(int port,
 
 void WebServer::sql_pool() {
   m_connPool = connection_pool::GetInstance();
-  m_connPool->init("localhost", m_user, m_passWord, m_databaseName, 3306, m_sql_num, m_close_log);
+  m_connPool->init("127.0.0.1", m_user, m_passWord, m_databaseName, 3306, m_sql_num, m_close_log);
   users->initmysql_result(m_connPool);
 }
 
@@ -135,34 +138,42 @@ void WebServer::eventLoop() {
   bool stop_server = false;
   while (!stop_server) {
     int number = epoll_wait(m_epollfd, events, MAX_EVENT_NUMBER, -1);
+    cout << "epoll_wait return" << endl;
     if (number < 0 && errno != EINTR) {
       break;
     }
+    cout << "event number = " << number << endl;
     for (int i = 0; i < number; ++i) {
       int sockfd = events[i].data.fd;
       if (sockfd == m_listenfd) {
         // 如果是新连接，要处理
+        cout << "new connect" << endl;
         bool flag = dealclientdata();
         if (flag == false) continue;
       } else if (events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
         // 如果服务器关闭了连接，移除定时器（EPOLLRDHUP TCP连接被对方关闭 | EPOLLHUP 挂起 | EPOLLERR 错误）
+        cout << "connection closed" << endl;
         util_timer *timer = users_timer[sockfd].timer;
         deal_timer(timer, sockfd);
       } else if ((sockfd == m_pipefd[0]) && (events[i].events & EPOLLIN)) {
         // 如果有信号来了
+        cout << "deal signal" << endl;
         bool flag = dealwithsignal(timeout, stop_server);
       } else if (events[i].events & EPOLLIN) {
         // 如果有可读信号
-        dealwithread();
+        cout << "epoll in" << endl;
+        dealwithread(sockfd);
       } else if (events[i].events & EPOLLOUT) {
         // 如果有可写信号
-        dealwithwrite();
+        cout << "epoll out" << endl;
+        dealwithwrite(sockfd);
       }
     }
     if (timeout) {
       utils.timer_handler();
       timeout = false;
     }
+    cout << "epoll_waiting\n" << endl;
   }
 }
 
@@ -193,11 +204,13 @@ bool WebServer::dealclientdata() {
     }
     return false;
   }
+  return true;
 }
 
 void WebServer::timer(int connfd, struct sockaddr_in client_address) {
   users[connfd].init(connfd, client_address, m_root, m_CONNTrigmode,
                      m_close_log, m_user, m_passWord, m_databaseName);
+  cout << "connfd = " << connfd << " init" << endl;
 
   users_timer[connfd].address = client_address;
   users_timer[connfd].sockfd = connfd;
@@ -243,10 +256,69 @@ bool WebServer::dealwithsignal(bool &timeout, bool &stop_server) {
   return true;
 }
 
-void WebServer::dealwithread() {
+void WebServer::dealwithread(int sockfd) {
+  cout << "处理读事件, actormodel = " << m_actormodel << endl;
+  util_timer *timer = users_timer[sockfd].timer;
+  if (m_actormodel == 1) {
+    if (timer) {
+      adjust_timer(timer);
+    }
 
+    m_pool->append(users + sockfd, 0);
+
+    while (true) {
+      if (users[sockfd].improv == 1) {
+        if (users[sockfd].timer_flag == 1) {
+          deal_timer(timer, sockfd);
+          users[sockfd].timer_flag = 0;
+        }
+        users[sockfd].improv = 0;
+        break;
+      }
+    }
+  } else {
+    if (users[sockfd].read_once()) {
+      m_pool->append_p(users + sockfd);
+      if (timer) {
+        adjust_timer(timer);
+      }
+    } else {
+      deal_timer(timer, sockfd);
+    }
+  }
 }
 
-void WebServer::dealwithwrite() {
+void WebServer::adjust_timer(util_timer *timer) {
+  time_t cur = time(NULL);
+  timer->expire = cur + 3 * TIMESLOT;
+  utils.m_timer_lst.adjust_timer(timer);
+}
 
+void WebServer::dealwithwrite(int sockfd) {
+  util_timer *timer = users_timer[sockfd].timer;
+  if (m_actormodel == 1) {
+    if (timer) {
+      adjust_timer(timer);
+    }
+    m_pool->append(users + sockfd, 1);
+
+    while (true) {
+      if (users[sockfd].improv == 1) {
+        if (users[sockfd].timer_flag) {
+          deal_timer(timer, sockfd);
+          users[sockfd].timer_flag = 0;
+        }
+        users[sockfd].improv = 0;
+        break;
+      }
+    }
+  } else {
+    if (users[sockfd].write()) {
+      if (timer) {
+        adjust_timer(timer);
+      }
+    } else {
+      deal_timer(timer, sockfd);
+    }
+  }
 }

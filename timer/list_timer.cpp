@@ -21,7 +21,10 @@ sort_timer_lst::~sort_timer_lst() noexcept {
 
 void sort_timer_lst::add_timer(util_timer *timer) {
   if (!timer) return;
-  if (!head) return;
+  if (!head) {
+    head = tail = timer;
+    return;
+  }
   // 头插
   if (timer->expire < head->expire) {
     timer->next = head;

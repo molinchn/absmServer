@@ -4,9 +4,9 @@
 using namespace std;
 int main(int argc, char *argv[]) {
 
-  string user = "root";
-  string passwd = "root";
-  string database = "mydb";
+  string user = "debian-sys-maint";
+  string passwd = "zMDjIZJstKQTB52u";
+  string database = "yourdb";
 
   Config config;
   config.parse_arg(argc, argv);

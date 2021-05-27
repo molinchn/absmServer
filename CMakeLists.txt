@@ -7,3 +7,4 @@ include_directories(/usr/include/mysql)
 
 add_executable(absmServer main.cpp config.h config.cpp webserver.cpp webserver.h threadpool/threadpool.h http/http_conn.cpp http/http_conn.h lock/locker.h CGImysql/sql_connection_pool.cpp CGImysql/sql_connection_pool.h timer/list_timer.cpp timer/list_timer.h)
 
+target_link_libraries(absmServer -lpthread -lmysqlclient)

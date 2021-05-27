@@ -39,12 +39,12 @@ class WebServer {
   void eventListen();
   void eventLoop();
   void timer(int connfd, struct sockaddr_in client_address);
-  void adjust_timer();
+  void adjust_timer(util_timer *timer);
   bool dealclientdata();
   void deal_timer(util_timer *timer, int sockfd);
   bool dealwithsignal(bool &timeout, bool &stop_server);
-  void dealwithread();
-  void dealwithwrite();
+  void dealwithread(int sockfd);
+  void dealwithwrite(int sockfd);
 
   // 基础
   int m_port;

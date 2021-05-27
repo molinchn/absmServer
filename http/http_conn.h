@@ -117,7 +117,7 @@ class http_conn {
   int m_sockfd;
   sockaddr_in m_address;
   char m_read_buf[READ_BUFFER_SIZE];
-  char m_read_idx;
+  int m_read_idx;
   int m_checked_idx;
   int m_start_line;
   char m_write_buf[WRITE_BUFFER_SIZE];
